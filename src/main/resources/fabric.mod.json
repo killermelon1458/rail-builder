@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
-  "id": "addon-template",
+  "id": "linear-build-suite",
   "version": "${version}",
-  "name": "Addon Template",
-  "description": "An addon template for Meteor Client addons.",
+  "name": "Linear Build Suite",
+  "description": "Meteor Client addon for automated rail and tunnel construction.",
   "authors": [
-    "seasnail"
+    "KillerMelon"
   ],
   "contact": {
-    "sources": "https://github.com/MeteorDevelopment/meteor-addon-template"
+    "sources": "https://github.com/killermelon1458/linear-build-suite"
   },
-  "icon": "assets/template/icon.png",
+  "icon": "assets/linearbuildsuite/icon.png",
   "environment": "client",
   "entrypoints": {
     "meteor": [
-      "com.example.addon.AddonTemplate"
+      "dev.killermelon.linearbuildsuite.LinearBuildSuite"
     ]
   },
   "mixins": [
-    "addon-template.mixins.json"
+    "linear-build-suite.mixins.json"
   ],
   "custom": {
     "meteor-client:color": "225,25,25",
@@ -30,7 +30,9 @@
   },
   "depends": {
     "java": ">=21",
-    "minecraft": ["${mc_version}"],
+    "minecraft": [
+      "${mc_version}"
+    ],
     "meteor-client": "*"
   }
 }
