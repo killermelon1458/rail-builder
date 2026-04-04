@@ -1,5 +1,10 @@
 # Rail Builder (Meteor Addon)
 
+
+<p align="center">
+  <img src="src/main/resources/assets/railbuilder/icon.png" width="15%">
+</p>
+
 **Rail Builder** is a **Minecraft Meteor Client addon** for automated rail construction and tunnel building.
 It provides configurable modules for building **powered rail systems**, **nether roof rails**, and **linear tunnel infrastructure** with minimal manual input.
 
@@ -10,7 +15,7 @@ Designed for **efficiency, automation, and long-distance travel builds**.
 ## Download
 
 Latest release:
-**<placeholder for link>**
+(https://github.com/killermelon1458/rail-builder/releases/latest)
 
 ---
 
