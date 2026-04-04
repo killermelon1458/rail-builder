@@ -103,7 +103,7 @@ A **specialized nether roof rail builder** optimized for speed and simplicity.
 ### 1. Download the mod
 
 Download the latest release:
-**<placeholder for link>**
+(https://github.com/killermelon1458/rail-builder/releases/latest)
 
 ---
 
