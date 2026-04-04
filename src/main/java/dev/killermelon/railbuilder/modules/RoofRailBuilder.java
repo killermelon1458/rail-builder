@@ -1,4 +1,4 @@
-package dev.killermelon.linearbuildsuite.modules;
+package dev.killermelon.railbuilder.modules;
 
 import baritone.api.BaritoneAPI;
 import baritone.api.pathing.goals.GoalBlock;
@@ -7,7 +7,7 @@ import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.mixin.ShulkerBoxScreenHandlerAccessor;
 import meteordevelopment.meteorclient.settings.*;
-import dev.killermelon.linearbuildsuite.LinearBuildSuite;
+import dev.killermelon.railbuilder.RailBuilder;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.combat.KillAura;
@@ -290,7 +290,7 @@ public class RoofRailBuilder extends Module {
 
 
     public RoofRailBuilder() {
-        super(LinearBuildSuite.CATEGORY, "roof-rail-builder", "Quick one-off nether roof powered rail builder with simple shulker refills.");
+        super(RailBuilder.CATEGORY, "roof-rail-builder", "Quick one-off nether roof powered rail builder with simple shulker refills.");
     }
 
     @Override
@@ -1894,4 +1894,5 @@ public class RoofRailBuilder extends Module {
         setMovement(false);
     }
 }
+
 

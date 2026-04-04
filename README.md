@@ -138,3 +138,4 @@ Here is a brief explanation of the ones you might need to modify:
 ## License
 
 This template is available under the CC0 license. Feel free to use it for your own projects.
+

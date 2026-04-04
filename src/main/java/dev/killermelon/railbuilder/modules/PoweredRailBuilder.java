@@ -1,10 +1,10 @@
-package dev.killermelon.linearbuildsuite.modules;
+package dev.killermelon.railbuilder.modules;
 
 import baritone.api.BaritoneAPI;
 import baritone.api.pathing.goals.GoalBlock;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
-import dev.killermelon.linearbuildsuite.LinearBuildSuite;
+import dev.killermelon.railbuilder.RailBuilder;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.combat.KillAura;
@@ -446,7 +446,7 @@ public class PoweredRailBuilder extends Module {
     private int recoveryAttempts;
 
     public PoweredRailBuilder() {
-        super(LinearBuildSuite.CATEGORY, "powered-rail-builder", "Builds a configurable tunnel with rails, shell, and configurable power placement.");
+        super(RailBuilder.CATEGORY, "powered-rail-builder", "Builds a configurable tunnel with rails, shell, and configurable power placement.");
     }
     @Override
     public void onActivate() {
@@ -1984,3 +1984,4 @@ public class PoweredRailBuilder extends Module {
     }
 
 }
+

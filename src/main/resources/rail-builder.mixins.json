@@ -1,6 +1,6 @@
 {
   "required": true,
-  "package": "dev.killermelon.linearbuildsuite.mixin",
+  "package": "dev.killermelon.railbuilder.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [],
   "injectors": {

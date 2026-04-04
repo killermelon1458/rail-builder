@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
-  "id": "linear-build-suite",
+  "id": "rail-builder",
   "version": "${version}",
-  "name": "Linear Build Suite",
-  "description": "Meteor Client addon for automated rail and tunnel construction.",
+  "name": "Rail Builder",
+  "description": "Meteor Client addon for automated rail and tunnel building.",
   "authors": [
     "KillerMelon"
   ],
   "contact": {
-    "sources": "https://github.com/killermelon1458/linear-build-suite"
+    "sources": "https://github.com/killermelon1458/rail-builder"
   },
-  "icon": "assets/linearbuildsuite/icon.png",
+  "icon": "assets/railbuilder/icon.png",
   "environment": "client",
   "entrypoints": {
     "meteor": [
-      "dev.killermelon.linearbuildsuite.LinearBuildSuite"
+      "dev.killermelon.railbuilder.RailBuilder"
     ]
   },
   "mixins": [
-    "linear-build-suite.mixins.json"
+    "rail-builder.mixins.json"
   ],
   "custom": {
     "meteor-client:color": "225,25,25",
