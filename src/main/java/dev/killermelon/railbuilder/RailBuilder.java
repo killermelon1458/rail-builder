@@ -1,5 +1,5 @@
 package dev.killermelon.railbuilder;
-
+// v0.1.0
 import com.mojang.logging.LogUtils;
 import dev.killermelon.railbuilder.modules.PoweredRailBuilder;
 import dev.killermelon.railbuilder.modules.RoofRailBuilder;
