@@ -4,7 +4,11 @@ plugins {
 
 base {
     archivesName = properties["archives_base_name"] as String
-    version = libs.versions.mod.version.get()
+    //version = libs.versions.mod.version.get()
+    val mcVersion = libs.versions.minecraft.get()
+    val modVersion = libs.versions.mod.version.get()
+
+    version = "$mcVersion-$modVersion"
     group = properties["maven_group"] as String
 }
 
