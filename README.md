@@ -2,7 +2,7 @@
 
 
 <p align="center">
-  <img src="src/main/resources/assets/railbuilder/icon.png" width="15%">
+  <img src="src/main/resources/assets/railbuilder/icon.png" width="30%">
 </p>
 
 **Rail Builder** is a **Minecraft Meteor Client addon** for automated rail construction and tunnel building.
