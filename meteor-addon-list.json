@@ -1,0 +1,23 @@
+{
+  "description": "Meteor Client addon for automated rail and tunnel construction, including powered rail builders and nether roof rail automation.",
+  "tags": [
+    "Addon",
+    "Utility",
+    "Automation",
+    "World",
+    "Baritone",
+    "Building",
+    "Rails",
+    "Minecarts"
+  ],
+  "supported_versions": [
+    "1.21.11"
+  ],
+  "icon": "https://raw.githubusercontent.com/killermelon1458/rail-builder/main/src/main/resources/assets/railbuilder/icon.png",
+  "homepage": "https://github.com/killermelon1458/rail-builder",
+  "feature_directories": {
+    "modules": [
+      "src/main/java/dev/killermelon/railbuilder/modules"
+    ]
+  }
+}
