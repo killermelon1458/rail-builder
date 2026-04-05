@@ -5,10 +5,7 @@
     "Utility",
     "Automation",
     "World",
-    "Baritone",
-    "Building",
-    "Rails",
-    "Minecarts"
+    "Building"
   ],
   "supported_versions": [
     "1.21.11"
@@ -17,7 +14,7 @@
   "homepage": "https://github.com/killermelon1458/rail-builder",
   "feature_directories": {
     "modules": [
-      "src/main/java/dev/killermelon/railbuilder/modules"
+      "modules"
     ]
   }
 }
