@@ -1035,3 +1035,263 @@ Low-level resource access execution.
 ### Result
 
 A reusable automation framework that can build rails today and support completely different in-game automation tomorrow.
+
+Inventory Management Revision: Safe Operations Model
+
+Goal of This Revision
+
+Replace the current reactive inventory handling with a deterministic, failure-resistant system that:
+
+Never drops items unintentionally
+
+Handles dynamic inventory changes (mining, pickups, packets)
+
+Eliminates race-condition failures during item moves
+
+
+
+---
+
+Core Problem
+
+Current system assumptions are invalid:
+
+Assumes slots remain unchanged during multi-tick operations
+
+Assumes destination slots stay empty
+
+Falls back to dropping items when assumptions break
+
+
+Reality:
+
+Inventory can change at any time (pickup, packets, module interactions)
+
+Multi-step operations are not atomic
+
+
+
+---
+
+Key Design Principles
+
+1. Single Inventory Authority
+
+All inventory operations must go through one system:
+
+No direct InvUtils.move() outside controller
+
+No module-level inventory manipulation
+
+
+InventoryController.enqueue(operation)
+
+
+---
+
+2. No Implicit Drops (Hard Rule)
+
+Dropping items is NOT a valid fallback.
+
+If a move cannot be completed:
+
+Pause
+
+Retry
+
+Re-evaluate state
+
+
+Never:
+
+throw item
+
+
+---
+
+3. Dynamic Buffer Slots (Replaces Reserved Slots)
+
+Do NOT reserve permanent empty slots.
+
+Instead:
+
+Find a usable slot at runtime
+
+Must not be critical (hotbar, active use)
+
+
+findBufferSlot():
+  return slot where:
+    not hotbar-critical
+    not reserved
+
+This allows:
+
+Full inventory operation
+
+No forced item dumping
+
+Compatibility with tunnel mining
+
+
+
+---
+
+4. Safe Move Operation
+
+All moves must follow this structure:
+
+moveSafe(source, target):
+  if target not empty:
+    buffer = findBufferSlot()
+    if buffer == -1: FAIL
+    move(target, buffer)
+
+  move(source, target)
+
+Rules:
+
+Never overwrite
+
+Always clear destination first
+
+Always guarantee space before move
+
+
+
+---
+
+5. Atomic Attempt Model
+
+Operations must not assume stability across ticks.
+
+Bad:
+
+check -> wait -> move
+
+Correct:
+
+validate -> act immediately -> verify
+
+
+---
+
+6. Post-Operation Validation
+
+After every operation:
+
+if expected state != actual state:
+  retry or recover
+
+Examples:
+
+Item not in expected slot
+
+Slot changed mid-operation
+
+
+
+---
+
+7. External Mutation Handling
+
+Inventory can change due to:
+
+Item pickup
+
+Server packets
+
+Other modules
+
+
+System must:
+
+Detect unexpected changes
+
+Abort current operation safely
+
+Recompute next action
+
+
+
+---
+
+8. Queue-Based Execution
+
+Inventory operations must be serialized:
+
+One operation at a time
+
+Deterministic execution order
+
+
+InventoryController:
+  queue<Operation>
+  process one per tick
+
+Prevents:
+
+Internal conflicts
+
+Overlapping moves
+
+
+
+---
+
+What This Solves
+
+Shulker being thrown during slot conflicts
+
+Items picked up mid-move breaking logic
+
+Inventory desync issues
+
+Race conditions across ticks
+
+
+
+---
+
+What This Does NOT Require
+
+Empty inventory slots
+
+Reserved permanent slots
+
+Dropping excess mined blocks
+
+
+
+---
+
+Implementation Requirements
+
+Must implement:
+
+InventoryController
+
+moveSafe(source, target)
+
+findBufferSlot()
+
+Operation queue
+
+Post-condition validation
+
+
+Must remove:
+
+Direct InvUtils usage in modules
+
+Any fallback that drops items automatically
+
+
+
+---
+
+Final Invariant
+
+At all times:
+
+> No inventory operation may result in unintended item loss, regardless of external changes.
