@@ -31,3 +31,10 @@ bin/
 # fabric
 
 run/
+
+# Ignore all images in assets except icon.png
+src/main/resources/assets/railbuilder/*
+!src/main/resources/assets/railbuilder/icon.png
+
+# Ignore resource packs
+src/main/resources/resource-packs/
