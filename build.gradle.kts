@@ -31,7 +31,7 @@ dependencies {
 
     // Meteor
     modImplementation(libs.meteor.client)
-    modImplementation(libs.baritone)
+    compileOnly("meteordevelopment:baritone:${libs.versions.meteor.get()}")
 }
 
 tasks {
