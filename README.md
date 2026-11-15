@@ -103,72 +103,75 @@ A **specialized nether roof rail builder** optimized for speed and simplicity.
 
 ---
 
-## Installation
+## Supported environment and installation
 
-### 1. Download the mod
+This release targets **Minecraft 1.21.11 only**, Java 21, Fabric Loader 0.18.2,
+and Meteor Client 1.21.11-SNAPSHOT. Development uses Yarn 1.21.11+build.3 and
+Fabric Loom 1.14-SNAPSHOT. Do not substitute Minecraft 26.x or newer Meteor builds.
 
-Download the latest release:
-(https://github.com/killermelon1458/rail-builder/releases/latest)
+Install these separate mods in a Fabric 1.21.11 profile's `mods` directory:
 
----
+* Meteor Client for 1.21.11 ([Meteor](https://meteorclient.com/)).
+* Meteor's Baritone build `meteordevelopment:baritone:1.21.11-SNAPSHOT`
+  ([artifact metadata](https://maven.meteordev.org/snapshots/meteordevelopment/baritone/1.21.11-SNAPSHOT/maven-metadata.xml)).
+  Its Fabric mod ID is `baritone-meteor`. Use the JAR named by the metadata,
+  not the sources JAR or an API-only distribution.
+* The remapped Rail Builder release JAR.
 
-### 2. Install Fabric Loader
+Use exactly one Baritone installation. The addon does not bundle Meteor or Baritone.
+The matching Meteor distribution supplies the Fabric API components it uses;
+Rail Builder does not require the full Fabric API as a separate dependency.
+Open Meteor's GUI (default Right Shift) and find both modules in **Linear Build**.
 
-Download and install Fabric for your Minecraft version:
-[https://fabricmc.net/use/installer/](https://fabricmc.net/use/installer/)
+## Build and development client
 
----
+With JDK 21 installed, from a fresh checkout:
 
-### 3. Required dependencies
+```sh
+./gradlew clean build --no-daemon --refresh-dependencies
+./gradlew runClient
+```
 
-Download the following:
+On Windows use `gradlew.bat`. Loom resolves Meteor and the matching Baritone mod
+for the development client; do not manually copy either into `run/mods`.
+`runClient` needs a desktop display and working OpenGL. A successful build does
+not prove client startup or gameplay. Inspect `run/logs/latest.log` for the loaded
+mod list and `Initializing Linear Build Suite`; confirm both modules in the GUI.
+A missing `Goal` or `ComeCommand` indicates a missing/incompatible Baritone runtime.
 
-* Fabric API
-  [https://www.curseforge.com/minecraft/mc-mods/fabric-api](https://www.curseforge.com/minecraft/mc-mods/fabric-api)
+The distributable is `build/libs/rail-builder-1.21.11-0.1.2.jar` (not a dev or
+sources JAR). Test it in a separate clean Fabric profile with the dependencies
+above, then follow [the validation checklist](docs/Stabilization.md).
+The version catalog `gradle/libs.versions.toml` is authoritative for all versions.
 
-* Meteor Client + Baritone
-  [https://meteorclient.com/](https://meteorclient.com/)
+For dependency diagnostics:
 
----
+```sh
+./gradlew dependencies --configuration runtimeClasspath
+./gradlew verifyBaritoneRuntime verifyDistribution
+```
 
-### 4. Install mods
+The build checks that a single complete Meteor Baritone provider is available at
+runtime, that metadata and both module classes are packaged, and that dependencies
+are not embedded. These checks do not initialize Minecraft or test gameplay.
 
-1. Press `Windows + R`
+## GitHub Actions and releases
 
-2. Type:
+Build Verification runs on all pushes and pull requests, and can also be dispatched
+manually. It uses Java 21, runs `clean build`, and uploads only the distributable
+as the `rail-builder` artifact. Failures in compilation, dependency verification,
+or packaging fail the job. Client launch is verified manually with the procedure
+above; CI does not claim a graphical startup smoke test.
 
-   ```text
-   %appdata%
-   ```
+Publish Development Build is a separate **manual** workflow. After its clean build,
+a dedicated publishing job with `contents: write` uploads the distributable to the
+`snapshot` prerelease. Routine CI never publishes releases. Repository Actions
+policies must permit these actions and manual publishing with the workflow token.
 
-3. Navigate to:
-
-   ```text
-   .minecraft/mods
-   ```
-
-4. Place the following `.jar` files into the `mods` folder:
-
-* Fabric API
-* Meteor Client
-* Baritone
-* Rail Builder
-
----
-
-### 5. Launch the game
-
-* Start Minecraft with the **Fabric profile**
-* Open Meteor Client GUI (default: `Right Shift`)
-* Enable modules under the **Linear Build** category
-
----
-
-## Notes
-
-* Requires **Meteor Client**
-* Requires **Baritone**
-
+The next proposed patch is **v0.1.2**. Review the changes and finish desktop and
+production-profile verification before creating that tag or publishing a release.
+Snapshot dependencies can change upstream; `--refresh-dependencies` checks current
+artifacts, so builds are not guaranteed byte-for-byte identical across time.
 
 ---
 
