@@ -30,6 +30,8 @@
   },
   "depends": {
     "java": ">=21",
+    "fabricloader": ">=0.18.2",
+    "baritone-meteor": "1.21.11-SNAPSHOT",
     "minecraft": [
       "${mc_version}"
     ],
