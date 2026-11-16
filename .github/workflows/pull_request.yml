@@ -1,30 +1,37 @@
-name: Build Pull Request Artifacts
-on: pull_request
+name: Build Verification
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-            persist-credentials: false
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
+          persist-credentials: false
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: 21
-
-      - name: Build with Gradle
-        run: ./gradlew build
-
-      - name: Release
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Test compatibility verification helpers
+        run: python3 -m unittest discover -s scripts/tests -v
+      - name: Clean build and verify runtime dependencies
+        run: ./gradlew clean build --no-daemon
+      - name: Upload distributable
         uses: actions/upload-artifact@v4
         with:
-          name: Artifacts
-          path: build/libs/
+          name: rail-builder
+          if-no-files-found: error
+          path: |
+            build/libs/rail-builder-*.jar
+            !build/libs/*-sources.jar
+            !build/libs/*-dev.jar

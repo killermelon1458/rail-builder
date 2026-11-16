@@ -1,6 +1,7 @@
 package dev.killermelon.railbuilder.modules;
 
 import baritone.api.BaritoneAPI;
+import dev.killermelon.railbuilder.diagnostics.BuilderDiagnostics;
 import baritone.api.pathing.goals.GoalBlock;
 import meteordevelopment.meteorclient.events.game.GameLeftEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
@@ -90,6 +91,14 @@ public class RoofRailBuilder extends Module {
     private static final int RESUME_VERIFY_WINDOW = 5;
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final Setting<Boolean> debugLogging = sgGeneral.add(new BoolSetting.Builder()
+        .name("debug-logging")
+        .description("Write state and inventory diagnostics to latest.log; item IDs/counts only.")
+        .defaultValue(false)
+        .build()
+    );
+    private final BuilderDiagnostics diagnostics = new BuilderDiagnostics("RoofRailBuilder", debugLogging::get);
+
     private final SettingGroup sgPower = settings.createGroup("Power");
     private final SettingGroup sgInventory = settings.createGroup("Inventory");
 
@@ -295,6 +304,11 @@ public class RoofRailBuilder extends Module {
 
     @Override
     public void onActivate() {
+        diagnostics.reset();
+        diagnostics.debug("activation", "ACTIVATE powerType=" + powerType.get() + " length=" + length.get()
+            + " rotate=" + rotate.get() + " spacing=" + powerSpacing.get() + " powerSlot=" + powerHotbarSlot.get()
+            + " railSlot=" + railHotbarSlot.get() + " foodSlot=" + foodHotbarSlot.get()
+            + " chestSlot=" + chestHotbarSlot.get() + " food=" + net.minecraft.registry.Registries.ITEM.getId(foodItem.get()));
         if (!Utils.canUpdate()) return;
         pendingResumeRailCheck = false;
         jobPaused = false;
@@ -349,7 +363,7 @@ public class RoofRailBuilder extends Module {
         resetPlacementRetry();
 
         requestType = null;
-        state = State.Build;
+        setState(State.Build);
 
         setMovement(true);
         saveJobSnapshot(false, false);
@@ -358,6 +372,7 @@ public class RoofRailBuilder extends Module {
 
     @Override
     public void onDeactivate() {
+        diagnostics.debug("deactivation", "DEACTIVATE state=" + state + " step=" + step);
         pendingResumeRailCheck = false;
         releaseMovement();
         stopBaritone();
@@ -391,6 +406,7 @@ public class RoofRailBuilder extends Module {
                 try {
                     return "singleplayer:" + mc.getServer().getSavePath(WorldSavePath.ROOT).getFileName();
                 } catch (Throwable ignored) {
+                    diagnostics.exception("job world identification", ignored);
                 }
             }
 
@@ -485,6 +501,7 @@ public class RoofRailBuilder extends Module {
             }
             return;
         } catch (Exception ignored) {
+            diagnostics.exception("job persistence", ignored);
             // Fall through to fallback file.
         }
 
@@ -510,6 +527,7 @@ public class RoofRailBuilder extends Module {
                     return snapshot;
                 }
             } catch (Exception ignored) {
+            diagnostics.exception("job persistence", ignored);
             }
         }
 
@@ -520,11 +538,13 @@ public class RoofRailBuilder extends Module {
         try {
             Files.deleteIfExists(getJobFile().toPath());
         } catch (Exception ignored) {
+            diagnostics.exception("job persistence", ignored);
         }
 
         try {
             Files.deleteIfExists(getJobFallbackFile().toPath());
         } catch (Exception ignored) {
+            diagnostics.exception("job persistence", ignored);
         }
     }
 
@@ -541,6 +561,7 @@ public class RoofRailBuilder extends Module {
         try {
             savedForward = Direction.valueOf(snapshot.forward);
         } catch (IllegalArgumentException | NullPointerException e) {
+            diagnostics.exception("job restoration", e);
             return false;
         }
 
@@ -554,7 +575,7 @@ public class RoofRailBuilder extends Module {
         step = Math.max(0, snapshot.step);
         lastPlacedRailStep = snapshot.lastPlacedRailStep;
         requestType = snapshot.requestType != null ? RequestType.valueOf(snapshot.requestType) : null;
-        state = snapshot.state != null ? State.valueOf(snapshot.state) : State.Build;
+        setState(snapshot.state != null ? State.valueOf(snapshot.state) : State.Build);
         clearTransientResumeState();
         snapshotAutosaveTimer = SNAPSHOT_AUTOSAVE_TICKS;
         pendingResumeRailCheck = true;
@@ -564,9 +585,9 @@ public class RoofRailBuilder extends Module {
         RequestType needed = getNeededRequest();
         if (needed != null) {
             requestType = needed;
-            state = State.Restock;
+            setState(State.Restock);
         } else {
-            state = State.Build;
+            setState(State.Build);
         }
     } else if (pauseChestPos == null) {
         pauseChestPos = getPauseChestPos();
@@ -641,6 +662,7 @@ public class RoofRailBuilder extends Module {
     }
 
     private void stopBaritone() {
+        if (lastGoal != null) diagnostics.debug("stop", "BARITONE cancel goal=" + lastGoal.toShortString() + " state=" + state);
         lastGoal = null;
         pathIdleTicks = 0;
         lastPathPlayerPos = null;
@@ -650,6 +672,7 @@ public class RoofRailBuilder extends Module {
             baritone.getPathingBehavior().cancelEverything();
             baritone.getCustomGoalProcess().setGoal(null);
         } catch (Throwable ignored) {
+            diagnostics.exception("Baritone or recovery", ignored);
         }
     }
 
@@ -659,12 +682,14 @@ public class RoofRailBuilder extends Module {
     }
 
     private void setBaritoneGoal(BlockPos goal) {
+        diagnostics.debug("goal", "BARITONE goal=" + goal.toShortString() + " state=" + state + " step=" + step);
         try {
             BaritoneAPI.getProvider().getPrimaryBaritone().getCustomGoalProcess()
                 .setGoalAndPath(new GoalBlock(goal.getX(), goal.getY(), goal.getZ()));
             lastGoal = goal.toImmutable();
             resetPathIdle();
         } catch (Throwable ignored) {
+            diagnostics.exception("Baritone or recovery", ignored);
         }
     }
 
@@ -722,6 +747,7 @@ public class RoofRailBuilder extends Module {
     }
 
     private void startRecovery() {
+        diagnostics.debug("recovery", "RECOVERY start state=" + state + " step=" + step + " idleTicks=" + pathIdleTicks);
         releaseMovement();
         stopBaritone();
         recovering = true;
@@ -758,7 +784,7 @@ public class RoofRailBuilder extends Module {
                         recovering = false;
                         recoveryTargetPos = null;
                         inventoryTimer = 0;
-                        state = State.Build;
+                        setState(State.Build);
                         setMovement(true);
                         return;
                     }
@@ -768,7 +794,7 @@ public class RoofRailBuilder extends Module {
             recovering = false;
             recoveryTargetPos = null;
             inventoryTimer = 0;
-            state = State.Build;
+            setState(State.Build);
             setMovement(true);
             return;
         }
@@ -800,14 +826,24 @@ public class RoofRailBuilder extends Module {
 
     @EventHandler
     private void onPacket(PacketEvent.Receive event) {
+        diagnostics.packet(event.packet);
         if (event.packet instanceof InventoryS2CPacket p) syncId = p.syncId();
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
+        try { tickBuilder(); }
+        catch (RuntimeException exception) {
+            diagnostics.exception("tick state=" + state, exception);
+            throw exception;
+        }
+    }
+
+    private void tickBuilder() {
         if (!Utils.canUpdate()) return;
         if (mc.player == null || mc.world == null) return;
 
+        diagnostics.debug("restock-state", "RESTOCK state=" + state + " request=" + requestType + " paused=" + jobPaused);
         handlePauseResumeKey();
 
         if (pendingJoinResume) {
@@ -862,7 +898,7 @@ public class RoofRailBuilder extends Module {
 
     private void tickBuild() {
         if (step >= length.get()) {
-            state = State.Done;
+            setState(State.Done);
             deleteJobSnapshot();
             releaseMovement();
             info("Finished.");
@@ -882,7 +918,7 @@ public class RoofRailBuilder extends Module {
 
         requestType = getNeededRequest();
         if (requestType != null) {
-            state = State.Restock;
+            setState(State.Restock);
             resetPlacementRetry();
             releaseMovement();
             return;
@@ -909,7 +945,7 @@ public class RoofRailBuilder extends Module {
                     FindItemResult power = ensurePowerItem();
                     if (!power.found()) {
                         requestType = RequestType.POWER;
-                        state = State.Restock;
+                        setState(State.Restock);
                         resetPlacementRetry();
                         releaseMovement();
                         return;
@@ -926,7 +962,7 @@ public class RoofRailBuilder extends Module {
             FindItemResult rail = ensureRailItem();
             if (!rail.found()) {
                 requestType = RequestType.RAIL;
-                state = State.Restock;
+                setState(State.Restock);
                 resetPlacementRetry();
                 releaseMovement();
                 return;
@@ -952,7 +988,7 @@ public class RoofRailBuilder extends Module {
         if (requestType == null) {
             RequestType neededNow = getNeededRequest();
             if (neededNow == null) {
-                state = State.Build;
+                setState(State.Build);
                 return;
             }
             requestType = neededNow;
@@ -964,7 +1000,7 @@ public class RoofRailBuilder extends Module {
 
         if (activeContainerPos == null && canContinueBuildingFromInventory(requestType)) {
             requestType = null;
-            state = State.Build;
+            setState(State.Build);
             return;
         }
 
@@ -978,7 +1014,7 @@ public class RoofRailBuilder extends Module {
         }
         if (ensureRequestedItemHotbarReady(requestType) && isRestockSatisfied(requestType)) {
             requestType = null;
-            state = State.Build;
+            setState(State.Build);
             return;
         }
 
@@ -988,9 +1024,9 @@ public class RoofRailBuilder extends Module {
 
             if (hasRawRequestedItem(requestType) && ensureRequestedItemHotbarReady(requestType)) {
                 requestType = null;
-                state = State.Build;
+                setState(State.Build);
             } else {
-                state = State.PauseForSupplies;
+                setState(State.PauseForSupplies);
             }
             return;
         }
@@ -1018,7 +1054,7 @@ public class RoofRailBuilder extends Module {
                 warning("Failed to move supply shulker to hotbar safely.");
                 activeContainerPos = null;
                 activeShulkerInventorySlot = -1;
-                state = State.PauseForSupplies;
+                setState(State.PauseForSupplies);
                 return;
             }
 
@@ -1091,7 +1127,7 @@ public class RoofRailBuilder extends Module {
                     requestType = null;
                     startRecovery();
                 } else {
-                    state = State.Restock;
+                    setState(State.Restock);
                 }
                 return;
             }
@@ -1123,7 +1159,7 @@ public class RoofRailBuilder extends Module {
             requestType = null;
             startRecovery();
         } else {
-            state = State.Restock;
+            setState(State.Restock);
         }
     }
 
@@ -1140,7 +1176,7 @@ public class RoofRailBuilder extends Module {
             FindItemResult chest = ensureChestItem();
             if (!chest.found()) {
                 warning("No chest found for pause sequence. Waiting without chest.");
-                state = State.WaitForRestock;
+                setState(State.WaitForRestock);
                 waitTimer = 0;
                 return;
             }
@@ -1165,7 +1201,7 @@ public class RoofRailBuilder extends Module {
 
                 mc.currentScreen.close();
                 inventoryTimer = inventoryDelay.get();
-                state = State.WaitForRestock;
+                setState(State.WaitForRestock);
                 waitTimer = 0;
                 return;
             }
@@ -1195,7 +1231,7 @@ public class RoofRailBuilder extends Module {
         waitTimer--;
         if (waitTimer > 0) return;
 
-        state = State.Resume;
+        setState(State.Resume);
     }
 
     private void tickResume() {
@@ -1212,7 +1248,7 @@ public class RoofRailBuilder extends Module {
         step = Math.max(0, lastPlacedRailStep + 1);
         pauseChestPos = null;
         resetPlacementRetry();
-        state = State.Build;
+        setState(State.Build);
         saveJobSnapshot(false, false);
 
         if (lastPlacedRailStep >= 0) startRecovery();
@@ -1295,7 +1331,7 @@ public class RoofRailBuilder extends Module {
         FindItemResult torch = ensurePowerItem();
         if (!torch.found()) {
             requestType = RequestType.POWER;
-            state = State.Restock;
+            setState(State.Restock);
             resetPlacementRetry();
             return false;
         }
@@ -1445,6 +1481,10 @@ public class RoofRailBuilder extends Module {
             if (stack.isEmpty()) continue;
             if (!matchesRequest(stack, type)) continue;
 
+            diagnostics.debug("restock-pull", "RESTOCK QUICK_MOVE request=" + type + " handlerSlot=" + i
+                + " syncId=" + syncId + " item=" + BuilderDiagnostics.stack(stack)
+                + " cursor=" + BuilderDiagnostics.stack(mc.player.currentScreenHandler.getCursorStack())
+                + " result=pending/unknown");
             mc.interactionManager.clickSlot(syncId, i, 0, SlotActionType.QUICK_MOVE, mc.player);
             return 1;
         }
@@ -1462,6 +1502,9 @@ public class RoofRailBuilder extends Module {
             if (invSlot == chestHotbarSlot.get()) continue;
 
             int handlerSlot = playerInvSlotToScreenSlot(invSlot, chestSlots);
+            diagnostics.debug("restock-deposit", "RESTOCK deposit empty shulker inventorySlot=" + invSlot
+                + " handlerSlot=" + handlerSlot + " cursor=" + BuilderDiagnostics.stack(mc.player.currentScreenHandler.getCursorStack())
+                + " result=pending/unknown");
             mc.interactionManager.clickSlot(screen.getScreenHandler().syncId, handlerSlot, 0, SlotActionType.QUICK_MOVE, mc.player);
             return true;
         }
@@ -1607,6 +1650,7 @@ public class RoofRailBuilder extends Module {
             ItemStack stack = mc.player.getInventory().getStack(i);
             if (stack.isEmpty()) continue;
             if (!isMushroom(stack)) continue;
+            diagnostics.debug("mushroom-drop", "Existing mushroom discard slot=" + i + " item=" + BuilderDiagnostics.stack(stack));
             InvUtils.drop().slot(i);
             return;
         }
@@ -1758,53 +1802,58 @@ public class RoofRailBuilder extends Module {
         if (current.isEmpty()) return true;
 
         if (isMushroom(current)) {
+            diagnostics.debug("mushroom-drop", "Existing mushroom discard slot=" + hotbarSlot + " item=" + BuilderDiagnostics.stack(current));
             InvUtils.drop().slot(hotbarSlot);
             return true;
         }
 
         int empty = InvUtils.findEmpty().slot();
-        if (empty == -1) return false;
+        if (empty == -1) {
+            diagnostics.critical("clear-hotbar", "No empty inventory slot to clear preferred slot=" + hotbarSlot);
+            return false;
+        }
 
-        InvUtils.move().from(hotbarSlot).to(empty);
-        InvUtils.dropHand();
-        return true;
+        var movedItem = current.getItem();
+        return diagnostics.move(hotbarSlot, empty, stack -> stack.getItem() == movedItem, "clear-hotbar");
     }
 
     private boolean ensureFoodHotbarReady() {
         ItemStack current = mc.player.getInventory().getStack(foodHotbarSlot.get());
         if (current.getItem() == foodItem.get()) return true;
 
-        FindItemResult found = InvUtils.find(stack -> stack.getItem() == foodItem.get());
+        FindItemResult found = diagnostics.search(stack -> stack.getItem() == foodItem.get(), foodHotbarSlot.get(), "food=" + net.minecraft.registry.Registries.ITEM.getId(foodItem.get()), state.name());
         if (!found.found()) {
             requestType = RequestType.FOOD;
-            state = State.Restock;
+            setState(State.Restock);
             releaseMovement();
             return false;
         }
 
         if (found.slot() != foodHotbarSlot.get()) {
-            InvUtils.move().from(found.slot()).toHotbar(foodHotbarSlot.get());
-            InvUtils.dropHand();
+            if (!diagnostics.move(found.slot(), foodHotbarSlot.get(), stack -> stack.getItem() == foodItem.get(), "food")) {
+                releaseMovement();
+                return false;
+            }
         }
 
         return true;
     }
     private FindItemResult ensureRailItem() {
-        return ensureHotbarItem(stack -> stack.getItem() == Items.POWERED_RAIL, railHotbarSlot.get());
+        return ensureHotbarItem(stack -> stack.getItem() == Items.POWERED_RAIL, railHotbarSlot.get(), "minecraft:powered_rail");
     }
 
     private FindItemResult ensurePowerItem() {
         Item target = getPowerItem();
-        return ensureHotbarItem(stack -> stack.getItem() == target, powerHotbarSlot.get());
+        return ensureHotbarItem(stack -> stack.getItem() == target, powerHotbarSlot.get(), "power=" + powerType.get());
     }
 
     private FindItemResult ensureFoodItem() {
         Item target = foodItem.get();
-        return ensureHotbarItem(stack -> stack.getItem() == target, foodHotbarSlot.get());
+        return ensureHotbarItem(stack -> stack.getItem() == target, foodHotbarSlot.get(), "food=" + net.minecraft.registry.Registries.ITEM.getId(target));
     }
 
     private FindItemResult ensureChestItem() {
-        return ensureHotbarItem(stack -> stack.getItem() == Items.CHEST, chestHotbarSlot.get());
+        return ensureHotbarItem(stack -> stack.getItem() == Items.CHEST, chestHotbarSlot.get(), "minecraft:chest");
     }
 
     private FindItemResult moveInventorySlotToHotbar(int fromSlot, int hotbarSlot) {
@@ -1812,24 +1861,17 @@ public class RoofRailBuilder extends Module {
         if (stack.isEmpty()) return new FindItemResult(-1, 0);
 
         if (fromSlot != hotbarSlot) {
-            InvUtils.move().from(fromSlot).toHotbar(hotbarSlot);
-            InvUtils.dropHand();
+            var movedItem = stack.getItem();
+            if (!diagnostics.move(fromSlot, hotbarSlot, item -> item.getItem() == movedItem, "supply-shulker")) return new FindItemResult(-1, 0);
         }
 
         return getHotbarResult(hotbarSlot);
     }
 
-    private FindItemResult ensureHotbarItem(Predicate<ItemStack> predicate, int preferredSlot) {
-        ItemStack current = mc.player.getInventory().getStack(preferredSlot);
-        if (predicate.test(current)) return getHotbarResult(preferredSlot);
-
-        FindItemResult found = InvUtils.find(predicate);
+    private FindItemResult ensureHotbarItem(Predicate<ItemStack> predicate, int preferredSlot, String request) {
+        FindItemResult found = diagnostics.search(predicate, preferredSlot, request, state.name());
         if (!found.found()) return found;
-
-        if (found.slot() != preferredSlot) {
-            InvUtils.move().from(found.slot()).toHotbar(preferredSlot);
-            InvUtils.dropHand();
-        }
+        if (found.slot() != preferredSlot && !diagnostics.move(found.slot(), preferredSlot, predicate, request)) return new FindItemResult(-1, 0);
 
         return getHotbarResult(preferredSlot);
     }
@@ -1893,6 +1935,30 @@ public class RoofRailBuilder extends Module {
     private void releaseMovement() {
         setMovement(false);
     }
+
+    @EventHandler
+    private void onDiagnosticTick(TickEvent.Post event) { diagnostics.tick(); }
+
+    private void setState(State next) {
+        if (state != next) diagnostics.debug("state", "STATE " + state + " -> " + next + " step=" + step);
+        state = next;
+    }
+
+    @Override
+    public void error(String message, Object... args) {
+        diagnostics.critical("error", "state=" + state + " step=" + step + " " + String.format(java.util.Locale.ROOT, message, args));
+        super.error(message, args);
+    }
+
+    @Override
+    public void info(String message, Object... args) {
+        diagnostics.debug("info", "state=" + state + " step=" + step + " " + String.format(java.util.Locale.ROOT, message, args));
+        super.info(message, args);
+    }
+
+    @Override
+    public void warning(String message, Object... args) {
+        diagnostics.critical("warning", "state=" + state + " step=" + step + " " + String.format(java.util.Locale.ROOT, message, args));
+        super.warning(message, args);
+    }
 }
-
-
