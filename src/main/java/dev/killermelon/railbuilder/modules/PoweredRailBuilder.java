@@ -1,8 +1,10 @@
 package dev.killermelon.railbuilder.modules;
 
 import baritone.api.BaritoneAPI;
+import dev.killermelon.railbuilder.diagnostics.BuilderDiagnostics;
 import baritone.api.pathing.goals.GoalBlock;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.settings.*;
 import dev.killermelon.railbuilder.RailBuilder;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -67,6 +69,14 @@ public class PoweredRailBuilder extends Module {
     }
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final Setting<Boolean> debugLogging = sgGeneral.add(new BoolSetting.Builder()
+        .name("debug-logging")
+        .description("Write state and inventory diagnostics to latest.log; item IDs/counts only.")
+        .defaultValue(false)
+        .build()
+    );
+    private final BuilderDiagnostics diagnostics = new BuilderDiagnostics("PoweredRailBuilder", debugLogging::get);
+
     private final SettingGroup sgStructure = settings.createGroup("Structure");
     private final SettingGroup sgMaterials = settings.createGroup("Materials");
     private final SettingGroup sgPower = settings.createGroup("Power");
@@ -450,6 +460,13 @@ public class PoweredRailBuilder extends Module {
     }
     @Override
     public void onActivate() {
+        diagnostics.reset();
+        diagnostics.debug("activation", "ACTIVATE powerType=" + powerType.get() + " length=" + length.get()
+            + " rotate=" + rotate.get() + " railMode=" + railMode.get() + " baritone=" + useBaritone.get()
+            + " size=" + width.get() + "x" + height.get() + " shell=" + ensureShell.get()
+            + " powerSpacing=" + powerSpacing.get() + " powerOffsets=" + powerLateralOffset.get() + "," + powerVerticalOffset.get()
+            + " floorBlocks=" + floorBlocks.get().stream().map(net.minecraft.registry.Registries.BLOCK::getId).toList()
+            + " shellBlocks=" + shellBlocks.get().stream().map(net.minecraft.registry.Registries.BLOCK::getId).toList());
         if (!Utils.canUpdate()) return;
 
         origin = mc.player.getBlockPos();
@@ -480,7 +497,7 @@ public class PoweredRailBuilder extends Module {
         BaritoneAPI.getSettings().allowSprint.value = true;
 
         updateStepPositions();
-        state = initialState();
+        setState(initialState());
 
         info(
     "Start locked. Facing %s. Size=%dx%d railOffset=%d shell=%s railMode=%s powerType=%s floorLayers=%d encapsulatePower=%s",
@@ -498,10 +515,12 @@ public class PoweredRailBuilder extends Module {
 
     @Override
     public void onDeactivate() {
+        diagnostics.debug("deactivation", "DEACTIVATE state=" + state + " step=" + step);
         stopBaritone();
     }
 
     private void stopBaritone() {
+        if (lastGoal != null) diagnostics.debug("stop", "BARITONE cancel goal=" + lastGoal.toShortString() + " state=" + state);
         lastGoal = null;
         pathIdleTicks = 0;
         lastPathPlayerPos = null;
@@ -513,6 +532,7 @@ public class PoweredRailBuilder extends Module {
             baritone.getPathingBehavior().cancelEverything();
             baritone.getCustomGoalProcess().setGoal(null);
         } catch (Throwable ignored) {
+            diagnostics.exception("Baritone or recovery", ignored);
             // Ignore API differences across Baritone branches.
         }
     }
@@ -533,6 +553,7 @@ public class PoweredRailBuilder extends Module {
     }
 
     private void setBaritoneGoal(BlockPos goal) {
+        diagnostics.debug("goal", "BARITONE goal=" + goal.toShortString() + " state=" + state + " step=" + step);
         BaritoneAPI.getProvider().getPrimaryBaritone().getCustomGoalProcess()
             .setGoalAndPath(new GoalBlock(goal.getX(), goal.getY(), goal.getZ()));
 
@@ -566,6 +587,7 @@ public class PoweredRailBuilder extends Module {
     }
 
     private void startRecovery() {
+        diagnostics.debug("recovery", "RECOVERY start state=" + state + " step=" + step + " idleTicks=" + pathIdleTicks);
         if (!useBaritone.get()) {
             error("Recovery requires Baritone.");
             toggle();
@@ -604,7 +626,7 @@ public class PoweredRailBuilder extends Module {
             step = Math.max(0, recoveryResumeStep);
             updateStepPositions();
             fallingStableTicks = 0;
-            state = initialState();
+            setState(initialState());
 
             info("Recovery succeeded. Resuming from step %d.", step);
             return;
@@ -622,6 +644,14 @@ public class PoweredRailBuilder extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
+        try { tickBuilder(); }
+        catch (RuntimeException exception) {
+            diagnostics.exception("tick state=" + state, exception);
+            throw exception;
+        }
+    }
+
+    private void tickBuilder() {
         if (!Utils.canUpdate()) return;
         if (stopOnDeath.get() && mc.player != null) {
             if (mc.player.isDead() || mc.player.getHealth() <= 0) {
@@ -640,7 +670,7 @@ public class PoweredRailBuilder extends Module {
         if (step >= length.get()) {
             stopBaritone();
             info("Finished.");
-            state = State.Done;
+            setState(State.Done);
             return;
         }
 
@@ -770,7 +800,7 @@ public class PoweredRailBuilder extends Module {
 
         // Done with +2 handling. Now switch to the current slice (+1).
         fallingStableTicks = 0;
-        state = State.HandleFallingBlocks;
+        setState(State.HandleFallingBlocks);
     }
 
     private void tickHandleFallingBlocks() {
@@ -798,7 +828,7 @@ public class PoweredRailBuilder extends Module {
             return;
         }
 
-        state = shouldUseShell() ? State.PlaceShell : (clearTunnelSpace.get() ? State.ClearSpace : State.PlaceFloors);
+        setState(shouldUseShell() ? State.PlaceShell : (clearTunnelSpace.get() ? State.ClearSpace : State.PlaceFloors));
     }
 
     private boolean isFallingBlock(BlockState state) {
@@ -906,7 +936,7 @@ public class PoweredRailBuilder extends Module {
             return;
         }
 
-        state = State.PlaceFloors;
+        setState(State.PlaceFloors);
     }
 
     private void tickPlaceShell() {
@@ -940,7 +970,7 @@ public class PoweredRailBuilder extends Module {
             return;
         }
 
-        state = clearTunnelSpace.get() ? State.ClearSpace : State.PlaceFloors;
+        setState(clearTunnelSpace.get() ? State.ClearSpace : State.PlaceFloors);
     }
 
     private void tickPlaceFloors() {
@@ -972,12 +1002,12 @@ public class PoweredRailBuilder extends Module {
             return;
         }
 
-        state = State.PlacePower;
+        setState(State.PlacePower);
     }
 
     private void tickPlacePower() {
         if (!shouldPlacePowerAtStep()) {
-            state = State.PlaceLight;
+            setState(State.PlaceLight);
             return;
         }
 
@@ -986,7 +1016,7 @@ public class PoweredRailBuilder extends Module {
         if (powerType.get() == PowerType.REDSTONE_BLOCK) {
             BlockState current = mc.world.getBlockState(powerPos);
             if (current.getBlock() == Blocks.REDSTONE_BLOCK) {
-                state = State.PlaceLight;
+                setState(State.PlaceLight);
                 return;
             }
 
@@ -997,7 +1027,7 @@ public class PoweredRailBuilder extends Module {
                 ItemType.POWER
             );
             if (!redstone.found()) {
-                error("No redstone blocks found in inventory.");
+                error("Cannot prepare redstone blocks: %s", diagnostics.inventoryFailure());
                 toggle();
                 return;
             }
@@ -1029,7 +1059,7 @@ public class PoweredRailBuilder extends Module {
             // If the wall block doesn't exist, just fail quietly and continue.
             if (isAboveRailTorchMode()) {
                 if (!isAcceptableStructuralBlock(supportState, supportPos)) {
-                    state = encapsulatePower.get() ? State.EncapsulatePower : State.PlaceRail;
+                    setState(encapsulatePower.get() ? State.EncapsulatePower : State.PlaceRail);
                     return;
                 }
             }
@@ -1062,7 +1092,7 @@ public class PoweredRailBuilder extends Module {
 
             BlockState torchState = mc.world.getBlockState(torchPos);
             if (isAnyRedstoneTorch(torchState)) {
-                state = State.PlaceLight;
+                setState(State.PlaceLight);
                 return;
             }
 
@@ -1093,7 +1123,7 @@ public class PoweredRailBuilder extends Module {
             return;
         }
 
-        state = State.PlaceLight;
+        setState(State.PlaceLight);
     }
 
     private void tickEncapsulatePower() {
@@ -1127,7 +1157,7 @@ public class PoweredRailBuilder extends Module {
             return;
         }
 
-        state = State.PlaceRail;
+        setState(State.PlaceRail);
     }
 
     private void tickPlaceRail() {
@@ -1135,7 +1165,7 @@ public class PoweredRailBuilder extends Module {
         Block desiredRail = getDesiredRailBlock();
 
         if (railState.getBlock() == desiredRail) {
-            state = State.MoveToNext;
+            setState(State.MoveToNext);
             return;
         }
 
@@ -1164,7 +1194,7 @@ public class PoweredRailBuilder extends Module {
 
         if (playerPos.equals(walkPos)) {
             stopBaritone();
-            state = State.Advance;
+            setState(State.Advance);
             return;
         }
 
@@ -1180,14 +1210,14 @@ public class PoweredRailBuilder extends Module {
         if (step >= length.get()) {
             stopBaritone();
             info("Finished.");
-            state = State.Done;
+            setState(State.Done);
             return;
         }
 
         updateStepPositions();
         fallingStableTicks = 0;
         
-        state = initialState();
+        setState(initialState());
     }
 
     private boolean shouldPlaceLightAtStep() {
@@ -1301,8 +1331,8 @@ public class PoweredRailBuilder extends Module {
         int preferredSlot = getPreferredHotbarSlot(itemType);
 
         if (tool.slot() != preferredSlot) {
-            InvUtils.move().from(tool.slot()).toHotbar(preferredSlot);
-            InvUtils.dropHand();
+            var requestedTool = mc.player.getInventory().getStack(tool.slot()).getItem();
+            if (!diagnostics.move(tool.slot(), preferredSlot, stack -> stack.getItem() == requestedTool, "tool=" + itemType)) return false;
         }
 
         InvUtils.swap(preferredSlot, false);
@@ -1558,7 +1588,7 @@ public class PoweredRailBuilder extends Module {
 
     private void tickPlaceLight() {
         if (!shouldPlaceLightAtStep()) {
-            state = encapsulatePower.get() ? State.EncapsulatePower : State.PlaceRail;
+            setState(encapsulatePower.get() ? State.EncapsulatePower : State.PlaceRail);
             return;
         }
 
@@ -1566,7 +1596,7 @@ public class PoweredRailBuilder extends Module {
         BlockState current = mc.world.getBlockState(lightPos);
 
         if (isDesiredLightBlock(current)) {
-            state = encapsulatePower.get() ? State.EncapsulatePower : State.PlaceRail;
+            setState(encapsulatePower.get() ? State.EncapsulatePower : State.PlaceRail);
             return;
         }
 
@@ -1670,18 +1700,21 @@ public class PoweredRailBuilder extends Module {
         return findFloorBlock();
     }
 
+    private String inventoryRequest(ItemType type) {
+        return switch (type) {
+            case POWER -> powerType.get() == PowerType.REDSTONE_BLOCK ? "minecraft:redstone_block" : "minecraft:redstone_torch";
+            case RAIL -> railMode.get() == RailMode.ALL_POWERED ? "minecraft:powered_rail" : "rail/mixed";
+            case LIGHT -> net.minecraft.registry.Registries.BLOCK.getId(lightBlock.get()).toString();
+            default -> type.name();
+        };
+    }
+
     private FindItemResult ensureHotbarItem(Predicate<ItemStack> predicate, ItemType type) {
         int preferredSlot = getPreferredHotbarSlot(type);
-        ItemStack current = mc.player.getInventory().getStack(preferredSlot);
-
-        if (predicate.test(current)) return getHotbarResult(preferredSlot);
-
-        FindItemResult inventory = InvUtils.find(predicate);
+        FindItemResult inventory = diagnostics.search(predicate, preferredSlot, inventoryRequest(type), state.name());
         if (!inventory.found()) return inventory;
-
         if (inventory.slot() != preferredSlot) {
-            InvUtils.move().from(inventory.slot()).toHotbar(preferredSlot);
-            InvUtils.dropHand();
+            if (!diagnostics.move(inventory.slot(), preferredSlot, predicate, inventoryRequest(type))) return new FindItemResult(-1, 0);
         }
 
         return getHotbarResult(preferredSlot);
@@ -1983,5 +2016,33 @@ public class PoweredRailBuilder extends Module {
         return positions;
     }
 
-}
 
+    @EventHandler
+    private void onDiagnosticTick(TickEvent.Post event) { diagnostics.tick(); }
+
+    private void setState(State next) {
+        if (state != next) diagnostics.debug("state", "STATE " + state + " -> " + next + " step=" + step);
+        state = next;
+    }
+
+    @Override
+    public void error(String message, Object... args) {
+        diagnostics.critical("error", "state=" + state + " step=" + step + " " + String.format(java.util.Locale.ROOT, message, args));
+        super.error(message, args);
+    }
+
+    @Override
+    public void info(String message, Object... args) {
+        diagnostics.debug("info", "state=" + state + " step=" + step + " " + String.format(java.util.Locale.ROOT, message, args));
+        super.info(message, args);
+    }
+
+    @Override
+    public void warning(String message, Object... args) {
+        diagnostics.critical("warning", "state=" + state + " step=" + step + " " + String.format(java.util.Locale.ROOT, message, args));
+        super.warning(message, args);
+    }
+
+    @EventHandler
+    private void onDiagnosticPacket(PacketEvent.Receive event) { diagnostics.packet(event.packet); }
+}

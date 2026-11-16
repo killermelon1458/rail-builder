@@ -1,5 +1,5 @@
 [versions]
-mod-version = "0.1.1"
+mod-version = "0.1.5"
 
 # Fabric (https://fabricmc.net/develop)
 minecraft = "1.21.11"
@@ -11,9 +11,8 @@ loom = "1.14-SNAPSHOT"
 
 # Meteor (https://github.com/MeteorDevelopment/meteor-client/)
 meteor = "1.21.11-SNAPSHOT"
-#baritone = "1.21.11-SNAPSHOT"
-
-# Mods
+baritone = "1.21.11-SNAPSHOT"
+nether-pathfinder = "1.4.1"
 
 [libraries]
 # Fabric base
@@ -23,9 +22,10 @@ fabric-loader = { module = "net.fabricmc:fabric-loader", version.ref = "fabric-l
 
 # Meteor client
 meteor-client = { module = "meteordevelopment:meteor-client", version.ref = "meteor" }
-#baritone = { module = "meteordevelopment:baritone", version.ref = "baritone" }
+baritone = { module = "meteordevelopment:baritone", version.ref = "baritone" }
 
-# Mods
+# Baritone's nested library, explicitly exposed only at development runtime.
+nether-pathfinder = { module = "dev.babbaj:nether-pathfinder", version.ref = "nether-pathfinder" }
 
 [plugins]
 fabric-loom = { id = "fabric-loom", version.ref = "loom" }
